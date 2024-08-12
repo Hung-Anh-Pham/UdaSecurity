@@ -1,0 +1,8 @@
+module securityservice {
+    requires java.desktop;
+    requires com.google.common;
+    requires com.google.gson;
+    requires java.prefs;
+    requires com.udacity.imageservice;
+    requires com.miglayout.swing;
+}
