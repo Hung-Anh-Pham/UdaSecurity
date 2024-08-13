@@ -15,8 +15,8 @@ import javax.swing.*;
  * all our dependencies and providing them to other classes as necessary.
  */
 public class CatPointGui extends JFrame {
-    private final SecurityRepository securityRepository = new PretendDatabaseSecurityRepositoryImpl();
-    private final ImageService imageService = new FakeImageService();
+    private final transient SecurityRepository securityRepository = new PretendDatabaseSecurityRepositoryImpl();
+    private final transient ImageService imageService = new FakeImageService();
     private final SecurityService securityService = new SecurityService(securityRepository, imageService);
     private final DisplayPanel displayPanel = new DisplayPanel(securityService);
     private final ControlPanel controlPanel = new ControlPanel(securityService);

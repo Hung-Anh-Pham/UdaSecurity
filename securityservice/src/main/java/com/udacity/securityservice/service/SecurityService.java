@@ -20,9 +20,9 @@ import java.util.concurrent.ConcurrentSkipListSet;
  */
 public class SecurityService {
 
-    private ImageService imageService;
-    private SecurityRepository securityRepository;
-    private Set<StatusListener> statusListeners = new HashSet<>();
+    private final ImageService imageService;
+    private final SecurityRepository securityRepository;
+    private final Set<StatusListener> statusListeners = new HashSet<>();
     private Boolean isDetected;
 
     public SecurityService(SecurityRepository securityRepository, ImageService imageService) {

@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.prefs.Preferences;
 
-public class PretendDatabaseSecurityRepositoryImpl implements SecurityRepository{
+public final class PretendDatabaseSecurityRepositoryImpl implements SecurityRepository{
 
     private final Set<Sensor> sensors;
     private AlarmStatus alarmStatus;
