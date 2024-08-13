@@ -9,6 +9,7 @@ import com.udacity.securityservice.data.Sensor;
 import java.awt.image.BufferedImage;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 /***
  * Service that receives information about changes to the security system. Responsible for
@@ -19,9 +20,10 @@ import java.util.Set;
  */
 public class SecurityService {
 
-    private final ImageService imageService;
-    private final SecurityRepository securityRepository;
-    private final Set<StatusListener> statusListeners = new HashSet<>();
+    private ImageService imageService;
+    private SecurityRepository securityRepository;
+    private Set<StatusListener> statusListeners = new HashSet<>();
+    private Boolean isDetected;
 
     public SecurityService(SecurityRepository securityRepository, ImageService imageService) {
         this.securityRepository = securityRepository;
@@ -34,10 +36,17 @@ public class SecurityService {
      * @param armingStatus ArmingStatus
      */
     public void setArmingStatus(ArmingStatus armingStatus) {
+        if (Boolean.TRUE.equals(isDetected) && armingStatus == ArmingStatus.ARMED_HOME) {
+            setAlarmStatus(AlarmStatus.ALARM);
+        }
         if(armingStatus == ArmingStatus.DISARMED) {
             setAlarmStatus(AlarmStatus.NO_ALARM);
+        } else {
+            ConcurrentSkipListSet<Sensor> sensors = new ConcurrentSkipListSet<>(getSensors());
+            sensors.forEach(s -> changeSensorActivationStatus(s, false));
         }
         securityRepository.setArmingStatus(armingStatus);
+        statusListeners.forEach(StatusListener::sensorStatusChanged);
     }
 
     /***
@@ -55,9 +64,12 @@ public class SecurityService {
      * @param cat True if a cat is detected, otherwise false.
      */
     private void catDetected(Boolean cat) {
-        if(cat && getArmingStatus() == ArmingStatus.ARMED_HOME) {
+        isDetected = cat;
+        boolean hasInactiveSensors = getSensors().stream().noneMatch(Sensor::getActive);
+        if(Boolean.TRUE.equals(cat) && getArmingStatus() == ArmingStatus.ARMED_HOME) {
             setAlarmStatus(AlarmStatus.ALARM);
-        } else {
+        }
+        if (Boolean.TRUE.equals(!cat) && hasInactiveSensors){
             setAlarmStatus(AlarmStatus.NO_ALARM);
         }
 
@@ -99,16 +111,31 @@ public class SecurityService {
         }
     }
 
+    public void changeSensorActivationStatus(Sensor sensor) {
+        AlarmStatus actualAlarmStatus = this.getAlarmStatus();
+        ArmingStatus actualArmingStatus = this.getArmingStatus();
+
+        if (actualAlarmStatus == AlarmStatus.PENDING_ALARM && Boolean.TRUE.equals(!sensor.getActive())
+            || (actualAlarmStatus == AlarmStatus.ALARM && actualArmingStatus == ArmingStatus.DISARMED)
+        ) {
+            handleSensorDeactivated();
+        }
+        securityRepository.updateSensor(sensor);
+    }
+
     /**
      * Change the activation status for the specified sensor and update alarm status if necessary.
      * @param sensor
      * @param active
      */
     public void changeSensorActivationStatus(Sensor sensor, Boolean active) {
-        if(!sensor.getActive() && active) {
-            handleSensorActivated();
-        } else if (sensor.getActive() && !active) {
-            handleSensorDeactivated();
+        AlarmStatus status = securityRepository.getAlarmStatus();
+        if (status != AlarmStatus.ALARM) {
+            if(Boolean.TRUE.equals(active)) {
+                handleSensorActivated();
+            } else if (Boolean.TRUE.equals(sensor.getActive())) {
+                handleSensorDeactivated();
+            }
         }
         sensor.setActive(active);
         securityRepository.updateSensor(sensor);

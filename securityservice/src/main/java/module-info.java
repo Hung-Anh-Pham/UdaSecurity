@@ -7,4 +7,6 @@ module com.udacity.securityservice {
     requires com.miglayout.swing;
     opens com.udacity.securityservice.data to com.google.gson;
     exports com.udacity.securityservice.service;
+    exports com.udacity.securityservice.data;
+    exports com.udacity.securityservice.application;
 }
