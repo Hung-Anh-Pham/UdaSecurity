@@ -14,3 +14,13 @@ mvn clean package
 java -jar securityservice/target/securityservice-1.0-SNAPSHOT.jar
 ```
 
+## How to achieve the SpotBugs report
+
+- Run the following command:
+
+```shell
+mvn install site
+```
+
+Note: this process take several minutes to complete.
+
