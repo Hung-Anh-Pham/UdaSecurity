@@ -122,10 +122,12 @@ public class SecurityServiceTest {
         verify(securityRepository, times(1)).setAlarmStatus(AlarmStatus.ALARM);
     }
 
-    // Test 6 (coverage 7%)
-    @Test
-    void given_inactiveSensor_when_deactivate_then_noAffectAlarmState() {
+    // Test 6 (coverage 11%)
+    @ParameterizedTest
+    @EnumSource(value = AlarmStatus.class, names = {"NO_ALARM", "PENDING_ALARM", "ALARM"})
+    void given_inactiveSensor_when_deactivate_then_noAffectAlarmState(AlarmStatus alarmStatus) {
         // Given
+        when(securityRepository.getAlarmStatus()).thenReturn(alarmStatus);
         sensor.setActive(false);
 
         // When
@@ -159,11 +161,14 @@ public class SecurityServiceTest {
         sensor1.setActive(false);
         sensor2.setActive(false);
 
+        Set<Sensor> sensors = new HashSet<>();
+        sensors.add(sensor1);
+        sensors.add(sensor2);
+
+        when(securityRepository.getSensors()).thenReturn(sensors);
         when(fakeImageService.imageContainsCat(any(), anyFloat())).thenReturn(false);
 
         // When
-        securityService.addSensor(sensor1);
-        securityService.addSensor(sensor2);
         securityService.processImage(mock(BufferedImage.class));
 
         // Then
@@ -178,6 +183,33 @@ public class SecurityServiceTest {
 
         // Then
         verify(securityRepository).setAlarmStatus(AlarmStatus.NO_ALARM);
+    }
+
+    // Test 10 (coverage 17%)
+    @ParameterizedTest
+    @EnumSource(value =  ArmingStatus.class, names = {"ARMED_HOME", "ARMED_AWAY"})
+    void given_systemArmed_then_setSensorsToInactive(ArmingStatus status) {
+        // Given
+        Sensor sensor1 = new Sensor(UUID.randomUUID().toString(), SensorType.DOOR);
+        Sensor sensor2 = new Sensor(UUID.randomUUID().toString(), SensorType.DOOR);
+
+        sensor1.setActive(true);
+        sensor2.setActive(true);
+
+        Set<Sensor> sensors = new HashSet<>();
+        sensors.add(sensor1);
+        sensors.add(sensor2);
+
+        when(securityRepository.getSensors()).thenReturn(sensors);
+        when(securityRepository.getAlarmStatus()).thenReturn(AlarmStatus.PENDING_ALARM);
+
+        // when
+        securityService.setArmingStatus(status);
+
+        // Then
+        securityService.getSensors().forEach(
+                s -> assertFalse(s.getActive())
+        );
     }
 
     // Test 11 (coverage 17%)
@@ -209,33 +241,6 @@ public class SecurityServiceTest {
         verify(securityRepository, times(1)).setAlarmStatus(AlarmStatus.PENDING_ALARM);
     }
 
-    // Test 10 (coverage 17%)
-    @ParameterizedTest
-    @EnumSource(value =  ArmingStatus.class, names = {"ARMED_HOME", "ARMED_AWAY"})
-    void given_systemArmed_then_setSensorsToInactive(ArmingStatus status) {
-        // Given
-        Sensor sensor1 = new Sensor(UUID.randomUUID().toString(), SensorType.DOOR);
-        Sensor sensor2 = new Sensor(UUID.randomUUID().toString(), SensorType.DOOR);
-
-        sensor1.setActive(true);
-        sensor2.setActive(true);
-
-        Set<Sensor> sensors = new HashSet<>();
-        sensors.add(sensor1);
-        sensors.add(sensor2);
-
-        when(securityRepository.getSensors()).thenReturn(sensors);
-        when(securityRepository.getAlarmStatus()).thenReturn(AlarmStatus.PENDING_ALARM);
-
-        // when
-        securityService.setArmingStatus(status);
-
-        // Then
-        securityService.getSensors().forEach(
-                s -> assertFalse(s.getActive())
-        );
-    }
-
     @ParameterizedTest
     @EnumSource(value = AlarmStatus.class, names = {"NO_ALARM", "PENDING_ALARM"})
     void given_systemDisarmed_sensorIsActivated_then_noChangeToArmingState(AlarmStatus status) {
@@ -257,9 +262,8 @@ public class SecurityServiceTest {
     // bypass
     @Test
     void add_remove_statusListeners() {
-        StatusListener listener = mock(StatusListener.class);
-        securityService.addStatusListener(listener);
-        securityService.removeStatusListener(listener);
+        securityService.addStatusListener(statusListener);
+        securityService.removeStatusListener(statusListener);
     }
 
     // bypass
