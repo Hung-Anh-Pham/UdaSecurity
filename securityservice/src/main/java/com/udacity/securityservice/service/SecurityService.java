@@ -39,12 +39,19 @@ public class SecurityService {
         if (Boolean.TRUE.equals(isDetected) && armingStatus == ArmingStatus.ARMED_HOME) {
             setAlarmStatus(AlarmStatus.ALARM);
         }
+
+        // Update all sensor corresponding to the arming state
+        ConcurrentSkipListSet<Sensor> sensors = new ConcurrentSkipListSet<>(getSensors());
+
         if(armingStatus == ArmingStatus.DISARMED) {
+
+            // DISARMED: The system is off, and no alarms should be triggered
             setAlarmStatus(AlarmStatus.NO_ALARM);
+
         } else {
-            ConcurrentSkipListSet<Sensor> sensors = new ConcurrentSkipListSet<>(getSensors());
             sensors.forEach(s -> changeSensorActivationStatus(s, false));
         }
+
         securityRepository.setArmingStatus(armingStatus);
         statusListeners.forEach(StatusListener::sensorStatusChanged);
     }
@@ -65,7 +72,10 @@ public class SecurityService {
      */
     private void catDetected(Boolean cat) {
         isDetected = cat;
+
+        // Before changing the alarm status, ensure that all sensors are inactive
         boolean hasInactiveSensors = getSensors().stream().noneMatch(Sensor::getActive);
+
         if(Boolean.TRUE.equals(cat) && getArmingStatus() == ArmingStatus.ARMED_HOME) {
             setAlarmStatus(AlarmStatus.ALARM);
         }

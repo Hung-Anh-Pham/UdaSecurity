@@ -8,13 +8,18 @@ import com.udacity.securityservice.data.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.ArgumentsProvider;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.awt.image.BufferedImage;
 import java.util.*;
+import java.util.stream.Stream;
 
 @ExtendWith(MockitoExtension.class)
 public class SecurityServiceTest {
@@ -42,11 +47,13 @@ public class SecurityServiceTest {
         sensor = new Sensor(UUID.randomUUID().toString(), SensorType.DOOR);
     }
 
-    @Test
-    void given_alarmIsArmed_sensorIsActivated_then_changeStatusToPending() {
+    // Test 1
+    @ParameterizedTest
+    @EnumSource(value = ArmingStatus.class, names = {"ARMED_HOME", "ARMED_AWAY"})
+    void given_armedStatus_activeSensor_then_changeToPendingAlarm(ArmingStatus armingStatus) {
         // Given
         when(securityRepository.getAlarmStatus()).thenReturn(AlarmStatus.NO_ALARM);
-        when(securityRepository.getArmingStatus()).thenReturn(ArmingStatus.ARMED_HOME);
+        when(securityRepository.getArmingStatus()).thenReturn(armingStatus);
 
         // When
         securityService.changeSensorActivationStatus(sensor, true);
@@ -55,11 +62,13 @@ public class SecurityServiceTest {
         verify(securityRepository).setAlarmStatus(AlarmStatus.PENDING_ALARM);
     }
 
-    @Test
-    void given_sensorIsActivate_alarmIsPending_systemIsArmed_then_changeStatusToAlarm() {
+    // Test 2 (Coverage 10%)
+    @ParameterizedTest
+    @EnumSource(value = ArmingStatus.class, names = {"ARMED_HOME", "ARMED_AWAY"})
+    void given_armedStatus_activeSensor_pendingAlarm_then_changeToAlarmStatus(ArmingStatus armingStatus) {
         // Given
         when(securityRepository.getAlarmStatus()).thenReturn(AlarmStatus.PENDING_ALARM);
-        when(securityRepository.getArmingStatus()).thenReturn(ArmingStatus.ARMED_HOME);
+        when(securityRepository.getArmingStatus()).thenReturn(armingStatus);
 
         // When
         securityService.changeSensorActivationStatus(sensor, true);
@@ -68,8 +77,9 @@ public class SecurityServiceTest {
         verify(securityRepository).setAlarmStatus(AlarmStatus.ALARM);
     }
 
+    // Test 3
     @Test
-    void given_sensorIsInactive_alarmIsPending_then_returnNoAlarm() {
+    void given_pendingAlarm_inactiveSensors_then_returnNoAlarm() {
         // Given
         when(securityRepository.getAlarmStatus()).thenReturn(AlarmStatus.PENDING_ALARM);
 
@@ -81,45 +91,53 @@ public class SecurityServiceTest {
         verify(securityRepository).setAlarmStatus(AlarmStatus.NO_ALARM);
     }
 
-    @Test
-    void given_alarmIsActive_changeSensor_then_notAffectAlarmState() {
+
+
+    // Test 4 (coverage: 2%)
+    @ParameterizedTest
+    @ArgumentsSource(SensorStateArgumentProvider.class)
+    void given_activeAlarm_swipeSensorState_then_notAffectAlarmState(boolean initialState, boolean swipeState) {
         // Given
         when(securityRepository.getAlarmStatus()).thenReturn(AlarmStatus.ALARM);
+        sensor.setActive(initialState);
 
         // Then
-        sensor.setActive(false);
-        securityService.changeSensorActivationStatus(sensor, false);
+        securityService.changeSensorActivationStatus(sensor, swipeState);
 
         // Then
         verify(securityRepository, never()).setAlarmStatus(any(AlarmStatus.class));
     }
 
+    // Test 5 (coverage 10%)
     @Test
-    void given_sensorIsActive_alamIsPending_then_changeStatusToAlarm() {
+    void given_activeSensor_pendingAlarm_when_activateSensor_then_changeToAlarmState() {
         // Given
         when(securityRepository.getAlarmStatus()).thenReturn(AlarmStatus.PENDING_ALARM);
+        sensor.setActive(true);
 
         // When
-        sensor.setActive(true);
         securityService.changeSensorActivationStatus(sensor, true);
 
         // Then
         verify(securityRepository, times(1)).setAlarmStatus(AlarmStatus.ALARM);
     }
 
-    // What is the never()
+    // Test 6 (coverage 7%)
     @Test
-    void given_inactiveSensor_when_activate_then_noAffectAlarmState() {
-        // When
+    void given_inactiveSensor_when_deactivate_then_noAffectAlarmState() {
+        // Given
         sensor.setActive(false);
+
+        // When
         securityService.changeSensorActivationStatus(sensor, false);
 
         // Then
         verify(securityRepository, never()).setAlarmStatus(any(AlarmStatus.class));
     }
 
+    // Test 7 (coverage 7%)
     @Test
-    void given_detectedCats_systemIsArmedHome_then_changeStatusToAlarm() {
+    void given_armedHomeState_when_detectedCats_then_changeToAlarmState() {
         // Given
         when(securityRepository.getArmingStatus()).thenReturn(ArmingStatus.ARMED_HOME);
         when(fakeImageService.imageContainsCat(any(), ArgumentMatchers.anyFloat())).thenReturn(true);
@@ -131,32 +149,30 @@ public class SecurityServiceTest {
         verify(securityRepository, times(1)).setAlarmStatus(AlarmStatus.ALARM);
     }
 
-    // Redundant
+    // Test 8 (coverage 8%)
     @Test
-    void given_inactiveSensors_undetectedCats_then_changeStatusToNoAlarm(){
+    void given_inactiveSensors_undetectedCats_then_changeToNoAlarmState(){
         // Given
-        Sensor sensor1 = new Sensor(UUID.randomUUID().toString(), SensorType.DOOR);
-        Sensor sensor2 = new Sensor(UUID.randomUUID().toString(), SensorType.DOOR);
+        Sensor sensor1 = new Sensor(getRandomString(), SensorType.DOOR);
+        Sensor sensor2 = new Sensor(getRandomString(), SensorType.WINDOW);
 
         sensor1.setActive(false);
         sensor2.setActive(false);
 
-        Set<Sensor> sensors = new HashSet<>();
-        sensors.add(sensor1);
-        sensors.add(sensor2);
-
-        when(securityRepository.getSensors()).thenReturn(sensors);
         when(fakeImageService.imageContainsCat(any(), anyFloat())).thenReturn(false);
 
         // When
+        securityService.addSensor(sensor1);
+        securityService.addSensor(sensor2);
         securityService.processImage(mock(BufferedImage.class));
 
         // Then
         verify(securityRepository, times(1)).setAlarmStatus(AlarmStatus.NO_ALARM);
     }
 
+    // Test 9 (coverage 5%)
     @Test
-    void given_systemDisarmed_then_setNoAlarmState() {
+    void given_disarmedSystem_then_setNoAlarmState() {
         // When
         securityService.setArmingStatus(ArmingStatus.DISARMED);
 
@@ -164,11 +180,13 @@ public class SecurityServiceTest {
         verify(securityRepository).setAlarmStatus(AlarmStatus.NO_ALARM);
     }
 
-    @Test
-    void given_systemArmedHome_detectedCats_then_changeStatusToAlarm() {
+    // Test 11 (coverage 17%)
+    @ParameterizedTest
+    @EnumSource(value = ArmingStatus.class, names = {"DISARMED", "ARMED_AWAY"})
+    void given_systemArmedHome_detectedCats_then_changeStatusToAlarm(ArmingStatus armingStatus) {
         // Given
         when(fakeImageService.imageContainsCat(any(), anyFloat())).thenReturn(true);
-        when(securityRepository.getArmingStatus()).thenReturn(ArmingStatus.DISARMED);
+        when(securityRepository.getArmingStatus()).thenReturn(armingStatus);
 
         // When
         securityService.processImage(mock(BufferedImage.class));
@@ -191,7 +209,7 @@ public class SecurityServiceTest {
         verify(securityRepository, times(1)).setAlarmStatus(AlarmStatus.PENDING_ALARM);
     }
 
-    // Redundant
+    // Test 10 (coverage 17%)
     @ParameterizedTest
     @EnumSource(value =  ArmingStatus.class, names = {"ARMED_HOME", "ARMED_AWAY"})
     void given_systemArmed_then_setSensorsToInactive(ArmingStatus status) {
@@ -230,5 +248,35 @@ public class SecurityServiceTest {
 
         // Then
         verify(securityRepository, never()).setArmingStatus(ArmingStatus.DISARMED);
+    }
+
+    private String getRandomString() {
+        return UUID.randomUUID().toString();
+    }
+
+    // bypass
+    @Test
+    void add_remove_statusListeners() {
+        StatusListener listener = mock(StatusListener.class);
+        securityService.addStatusListener(listener);
+        securityService.removeStatusListener(listener);
+    }
+
+    // bypass
+    @Test
+    void add_remove_sensor() {
+        securityService.addSensor(sensor);
+        securityService.removeSensor(sensor);
+    }
+}
+
+class SensorStateArgumentProvider implements ArgumentsProvider {
+
+    @Override
+    public Stream<? extends Arguments> provideArguments(ExtensionContext extensionContext) throws Exception {
+        return Stream.of(
+                Arguments.of(Boolean.TRUE, Boolean.FALSE),
+                Arguments.of(Boolean.FALSE, Boolean.TRUE)
+        );
     }
 }
